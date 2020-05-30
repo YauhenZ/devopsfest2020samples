@@ -6,7 +6,7 @@ provider "azurerm" {
 # backend
 terraform {
   backend "azurerm" {
-    key = "platformlbrule.terraform.tfstate"
+    key = "backendlbrule.terraform.tfstate"
   }
 }
 
@@ -28,6 +28,13 @@ variable "infra_vault_rid" {
 
 variable "hub_environment_name" {
     type = string
+    default = ""
+}
+
+# default variables
+
+variable "product_name" { 
+    default = "backend"
 }
 
 locals {
@@ -35,26 +42,26 @@ locals {
 }
 
 
-data "azurerm_key_vault_secret" "platform_lb_name" {
-    name          =  "${local.hub_environment_name}-platformhub-output-lb-name" 
+data "azurerm_key_vault_secret" "lb_name" {
+    name          =  "${local.hub_environment_name}-${var.product}hub-output-lb-name" 
     key_vault_id  = var.infra_vault_rid
 }
 
-data "azurerm_key_vault_secret" "platform_hub_rg" {
-    name          =  "${local.hub_environment_name}-platformhub-output-rg-name" 
+data "azurerm_key_vault_secret" "hub_rg" {
+    name          =  "${local.hub_environment_name}-${var.product_name}hub-output-rg-name" 
     key_vault_id  = var.infra_vault_rid
 }
 
 data "azurerm_key_vault_secret" "instance_public_ip" {
-    name          = "${var.environment_name}-platform-output-ingress-ip"
+    name          = "${var.environment_name}-${var.product_name}-output-aks-ingressip"
     key_vault_id  = var.infra_vault_rid
 }
 
 
 resource "azurerm_traffic_manager_endpoint" "example" {
   name                = "${var.environment_name}endpoint"
-  resource_group_name = data.azurerm_key_vault_secret.platform_hub_rg.value 
-  profile_name        = data.azurerm_key_vault_secret.platform_lb_name.value
+  resource_group_name = data.azurerm_key_vault_secret.hub_rg.value 
+  profile_name        = data.azurerm_key_vault_secret.lb_name.value
   target              = data.azurerm_key_vault_secret.instance_public_ip.value
   type                = "externalEndpoints"
   weight              = 100
