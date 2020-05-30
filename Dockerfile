@@ -11,3 +11,8 @@ RUN wget  https://releases.hashicorp.com/terraform/0.12.24/terraform_0.12.24_lin
 
 # install terragrunt
 RUN wget https://github.com/gruntwork-io/terragrunt/releases/download/v0.23.7/terragrunt_linux_amd64 -O /usr/local/bin/terragrunt && chmod +x /usr/local/bin/terragrunt
+
+# add terraform / terragrunt wrapper (add custom powershell modules to autoload)
+ADD ps-modules/ /opt/microsoft/powershell/7/Modules/
+
+ENTRYPOINT ["/usr/bin/pwsh"]
