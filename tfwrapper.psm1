@@ -1,12 +1,14 @@
+## terraform/terragrunt related helpers 
 function Set-Environment {
     param (
         [Parameter(Mandatory=$true)]
         [string]$environment,
-        [Switch]$force
+        [Switch]$force, 
+        [Switch]$skipInit
     )
     
     if ($force) { 
-        Remove-Item .\.terraform\ -Force -Recurse
+        Get-ChildItem -Recurse -Filter 'terraform.tfstate' -Force | Remove-Item -Force
     }
 
     # make sure that az is using same subscribtion 
@@ -15,9 +17,9 @@ function Set-Environment {
     az account set --subscription "$subscribtionName"
 
     # const 
-    $rgName = "terraform"
-    $saPrefix = "terraformsa" 
-    $vaultPrefix = "terraformvault"
+    $rgName = "tfinfra"
+    $saPrefix = "infrasa" 
+    $vaultPrefix = "infravault"
 
     $containerName = $environment
     if ($environment.Length -le 3) { 
@@ -40,10 +42,12 @@ function Set-Environment {
     $env:TF_VAR_backend_storage_account_rg=$rgName 
     $env:TF_VAR_infra_vault_rid=$vault.ResourceId
 
-    # run terraform init   
-    $command = "terraform init --backend-config 'storage_account_name=$env:TF_VAR_backend_storage_account_name' --backend-config 'container_name=$containerName' --backend-config 'resource_group_name=$env:TF_VAR_backend_storage_account_rg'"
-    Write-Host $command
-    Invoke-Expression "& $command"
+    # run terraform init       
+    if (!$skipInit) { 
+        $command = "terraform init --backend-config 'storage_account_name=$env:TF_VAR_backend_storage_account_name' --backend-config 'container_name=$containerName' --backend-config 'resource_group_name=$env:TF_VAR_backend_storage_account_rg'"
+        Write-Host $command
+        Invoke-Expression "& $command"
+    }
 }
 
 
@@ -99,4 +103,51 @@ function Add-Environment {
     }
 }
 
+
+## key vault & certificates related helpers.
+# https://social.msdn.microsoft.com/Forums/en-US/c90782a8-e1a6-4d45-bfe1-9a50c5a6210a/unable-to-upload-pfx-file-to-azure-key-vault?forum=AzureKeyVault
+function Set-KVCertificate {
+    param (
+        [Parameter(Mandatory=$true)]
+        [string]$secretname, 
+        [Parameter(Mandatory=$true)]
+        [string]$pfxFilePath,
+        [Parameter(Mandatory=$true)]
+        [string]$pwd
+    )
+
+    $rgName = "tfinfra"
+    $vault = Get-AzKeyVault -ResourceGroupName $rgName 
+    Write-Output "using backend vault: $($vault.VaultName)"
+
+    $flag = [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable
+    $collection = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2Collection
+    $collection.Import($pfxFilePath, $pwd, $flag)
+    $pkcs12ContentType = [System.Security.Cryptography.X509Certificates.X509ContentType]::Pkcs12
+    $clearBytes = $collection.Export($pkcs12ContentType)
+    $fileContentEncoded = [System.Convert]::ToBase64String($clearBytes)
+    $secret = ConvertTo-SecureString -String $fileContentEncoded -AsPlainText -Force
+    $secretContentType = 'application/x-pkcs12'
+    
+    Set-AzKeyVaultSecret -VaultName $vault.VaultName -Name $secretname -SecretValue $Secret -ContentType $secretContentType
+}
+
+function Set-KvSecretFromFile {
+    param (
+        [Parameter(Mandatory=$true)]
+        [string]$secretname, 
+        [Parameter(Mandatory=$false)]
+        [string]$filePath
+    )
+
+    $rgName = "tfinfra"
+    $vault = Get-AzKeyVault -ResourceGroupName $rgName 
+    Write-Output "using backend vault: $($vault.VaultName)"
+
+    $value = Get-Content $filePath -Raw | ConvertTo-SecureString -AsPlainText -Force
+    Set-AzKeyVaultSecret -VaultName $vault.VaultName -Name $secretname -SecretValue $value
+}
+
 Export-ModuleMember -Function Set-Environment
+Export-ModuleMember -Function Set-KVCertificate
+Export-ModuleMember -Function Set-KvSecretFromFile
