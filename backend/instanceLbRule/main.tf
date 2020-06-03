@@ -43,7 +43,7 @@ locals {
 
 
 data "azurerm_key_vault_secret" "lb_name" {
-    name          =  "${local.hub_environment_name}-${var.product}hub-output-lb-name" 
+    name          =  "${local.hub_environment_name}-${var.product_name}hub-output-lb-name" 
     key_vault_id  = var.infra_vault_rid
 }
 

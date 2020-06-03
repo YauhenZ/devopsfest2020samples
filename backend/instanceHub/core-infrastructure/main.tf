@@ -130,7 +130,7 @@ resource "azurerm_traffic_manager_profile" "trafic_manager" {
   }
 }
 resource "azurerm_key_vault_secret" "lb_name" {
-    name = "${var.environment_name}-${var.product}hub-output-lb-name" 
+    name = "${var.environment_name}-${var.product_name}hub-output-lb-name" 
     value = azurerm_traffic_manager_profile.trafic_manager.name
     
     key_vault_id = var.infra_vault_rid
